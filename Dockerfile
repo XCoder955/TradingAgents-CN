@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation \
     pandoc \
     procps \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 启动Xvfb虚拟显示器
