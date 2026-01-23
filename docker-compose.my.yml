@@ -1,0 +1,194 @@
+# 使用方法：
+# 3. 访问: http://your-server (前端和后端API都通过80端口访问)
+# 4. 首次部署必须执行此步骤，导入系统配置和创建管理员账号：docker exec -it tradingagents-backend python /app/scripts/import_config_and_create_user.py
+# 5. 重启后端服务: docker restart tradingagents-backend
+# 默认登录信息：admin/admin123
+
+networks:
+  bridge:
+    driver: bridge
+services:
+  # MongoDB数据库
+  mongodb:
+    image: mongo:4.4
+    container_name: mongodb-tradingagents
+    restart: unless-stopped
+    #ports:
+    #  - "27017:27017"
+    volumes:
+      - /volume2/Docker/TradingAgents-CN/mongodb:/data/db
+      # 注意：不挂载初始化脚本，使用 MongoDB 自动创建的 root 用户
+      # 应用会在首次运行时自动创建所需的集合和索引
+      # 宿主机时间 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: tradingagents123
+      MONGO_INITDB_DATABASE: tradingagents
+      TZ: "Asia/Shanghai"
+    networks:
+      - bridge
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: redis-tradingagents
+    restart: unless-stopped
+    #ports:
+    #  - "6379:6379"
+    volumes:
+      - /volume2/Docker/TradingAgents-CN/redis:/data
+      # 宿主机时间 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: "Asia/Shanghai"
+    command: redis-server --appendonly yes --requirepass tradingagents123
+    networks:
+      - bridge
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "tradingagents123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # FastAPI后端服务
+  tradingagents:
+    image: ghcr.io/xcoder955/TradingAgents-CN:latest
+    container_name: tradingagents
+    restart: unless-stopped
+    ports:
+      - 1180:80
+    volumes:
+      - /volume2/Docker/TradingAgents-CN/logs:/app/logs
+      - /volume2/Docker/TradingAgents-CN/config:/app/config
+      - /volume2/Docker/TradingAgents-CN/data:/app/data
+      # 宿主机时间 
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      ## AI模型API密钥
+      # 🇨🇳 阿里百炼 API 密钥 (推荐，国产大模型，中文优化)
+      # 获取地址: https://dashscope.aliyun.com/
+      DASHSCOPE_API_KEY: "${DASHSCOPE_API_KEY}"
+      DASHSCOPE_ENABLED: "false"
+      # 🤖 DeepSeek API 密钥 (推荐，性价比高)
+      # 获取地址: https://platform.deepseek.com/
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY}"
+      DEEPSEEK_ENABLED: "false"
+      # 🌐 OpenAI API 密钥 (可选，需要国外网络)
+      # 获取地址: https://platform.openai.com/
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_ENABLED: "false"
+      # Google AI API 密钥 (可选，用于Gemini模型)
+      # 获取地址: https://ai.google.dev/
+      # 注意：如果不使用 Google Gemini，请保持 GOOGLE_ENABLED=false
+      # 如果 API Key 无效，系统会自动降级到其他模型
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      GOOGLE_ENABLED: "false"
+      # 🧠 文心一言（百度千帆）API 密钥
+      # 获取地址: https://cloud.baidu.com/product/wenxinworkshop
+      BAIDU_API_KEY: "${BAIDU_API_KEY}"
+      BAIDU_SECRET_KEY: "${BAIDU_SECRET_KEY}"
+      BAIDU_ENABLED: "false"
+      # 🌐 OpenRouter API 密钥 (可选，聚合多个AI模型)
+      # 获取地址: https://openrouter.ai/
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
+      OPENROUTER_ENABLED: "false"
+      # 🤖 Anthropic API 密钥 (可选，用于Claude模型)
+      # 获取地址: https://console.anthropic.com/
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      ANTHROPIC_ENABLED: "false"
+      # 🤖 AI302 API 密钥 (可选)
+      AI302_API_KEY: "${AI302_API_KEY}"
+      AI302_ENABLED: "false"
+      # 🇨🇳 硅基流动 API 密钥（可选）
+      # 获取地址: https://www.siliconflow.cn/
+      #SILICONFLOW_API_KEY: "your_siliconflow_api_key_here"
+      # 🔧 One API / New API（可选，自部署聚合平台）
+      # 获取地址:
+      #   - One API: https://github.com/songquanpeng/one-api
+      #   - New API: https://github.com/Calcium-Ion/new-api
+      #ONEAPI_API_KEY: "your_oneapi_api_key_here"
+      #ONEAPI_BASE_URL: "http://localhost:3000/v1"
+
+      ## 数据源API密钥#
+      # 可选值: tushare, akshare, baostock
+      # 默认中国股票数据源
+      DEFAULT_CHINA_DATA_SOURCE: "akshare"
+      #AKShare 开源财经数据库（默认 true）
+      AKSHARE_ENABLED: "true"
+      #宝矿网开源财经数据接口（默认 true）
+      BAOSTOCK_ENABLED: "true"
+      #同花顺「Tushare」财经数据接口
+      # 获取地址: https://tushare.pro/register?reg=tacn
+      # 获取步骤：注册账号 -> 邮箱验证 -> 获取Token
+      # 注意：免费用户有调用频率限制，建议升级积分到2000积分以上，实时行情需要另外交费
+      TUSHARE_TOKEN: "${TUSHARE_TOKEN}"
+      TUSHARE_ENABLED: "false"
+      # Tushare权限等级配置（用于速率限制）
+      # 可选值: free(120次/分), basic(300次/分), standard(800次/分), premium(2000次/分), vip(5000次/分)
+      TUSHARE_TIER: "standard"
+      TUSHARE_RATE_LIMIT_SAFETY_MARGIN: "0.8"
+      #Finnhub 金融数据 API 密钥（美股、加密货币等实时数据）
+      # 获取地址: https://finnhub.io/
+      FINNHUB_API_KEY: "${FINNHUB_API_KEY}"
+      FINNHUB_ENABLED: "false"
+
+      ##以下固定配置
+      # 后端API地址
+      VITE_API_BASE_URL: "http://localhost:8000"
+      # API配置
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      # CORS配置
+      CORS_ORIGINS: "*"
+      # 安全配置
+      JWT_SECRET: "docker-jwt-secret-key-change-in-production-2024"
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      REFRESH_TOKEN_EXPIRE_DAYS: "30"
+      CSRF_SECRET: "docker-csrf-secret-key-change-in-production-2024"
+      BCRYPT_ROUNDS: "12"
+      #时区
+      TZ: "Asia/Shanghai"
+      #日志配置
+      TRADINGAGENTS_LOG_LEVEL: "INFO"
+      TRADINGAGENTS_LOG_DIR: "/app/logs"
+      TRADINGAGENTS_LOG_FILE: "/app/logs/tradingagents.log"
+      # MongoDB配置（使用 root 用户）
+      MONGODB_HOST: "mongodb"
+      MONGODB_PORT: "27017"
+      MONGODB_USERNAME: "admin"
+      MONGODB_PASSWORD: "tradingagents123"
+      MONGODB_DATABASE: "tradingagents"
+      MONGODB_AUTH_SOURCE: "admin"
+      # 注意：authSource=admin 表示在 admin 数据库中验证用户
+      MONGODB_URL: "mongodb://admin:tradingagents123@mongodb:27017/tradingagents?authSource=admin"
+      MONGODB_CONNECTION_STRING: "mongodb://admin:tradingagents123@mongodb:27017/tradingagents?authSource=admin"
+      # Redis配置
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "tradingagents123"
+      REDIS_URL: "redis://:tradingagents123@redis:6379/0"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
