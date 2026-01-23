@@ -96,4 +96,4 @@ COPY .env.docker ./.env
 EXPOSE 8000 80
 
 # 启动Nginx和后端服务
-ENTRYPOINT [ "/bin/sh", "-c", "nginx -g daemon off; & exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000" ]
+ENTRYPOINT [ "/bin/sh", "-c", "nginx -g 'daemon off' & exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000" ]
