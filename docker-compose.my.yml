@@ -62,7 +62,7 @@ services:
 
   # FastAPI后端服务
   tradingagents:
-    image: ghcr.io/xcoder955/TradingAgents-CN:latest
+    image: ghcr.io/xcoder955/tradingagents-cn:latest
     container_name: tradingagents
     restart: unless-stopped
     ports:
